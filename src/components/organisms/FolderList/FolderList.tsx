@@ -7,20 +7,18 @@ const FolderListContainer = styled.div``
 
 type FolderListProps = {
   folderTreeData: object[]
+  handleFolderTreeDataUpdated: (treeData: object[]) => void
 }
 
-const FolderList = ({ folderTreeData }: FolderListProps) => {
-  const [folderTreeDataState, setFolderTreeDataState] = useState(folderTreeData)
-
-  const updateTreeData = (treeData: Object[]) => {
-    setFolderTreeDataState(treeData)
-  }
-
+const FolderList = ({
+  folderTreeData,
+  handleFolderTreeDataUpdated,
+}: FolderListProps) => {
   return (
     <FolderListContainer style={{ height: 200 }}>
       <SortableTree
-        treeData={folderTreeDataState}
-        onChange={updateTreeData}
+        treeData={folderTreeData}
+        onChange={handleFolderTreeDataUpdated}
         theme={FileExplorerTheme}
         generateNodeProps={(rowInfo) => ({
           icons: rowInfo.node.isDirectory

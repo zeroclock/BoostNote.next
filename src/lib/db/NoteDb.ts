@@ -116,7 +116,6 @@ export default class NoteDb {
         _id: getFolderId(pathname),
         createdAt: now,
         data: {},
-        // order: order,
       }),
       ...props,
       updatedAt: now,
