@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from 'react'
+import React, { useMemo, useCallback, useState } from 'react'
 import { useDb } from '../../lib/db'
-import { NoteStorage } from '../../lib/db/types'
+import { entries, values } from '../../lib/db/utils'
+import { NoteStorage, ObjectMap, PopulatedFolderDoc } from '../../lib/db/types'
 import { useRouter } from '../../lib/router'
 import { useDialog, DialogIconTypes } from '../../lib/dialog'
 import { useToast } from '../../lib/toast'
@@ -17,6 +18,7 @@ import {
 } from '../atoms/form'
 import LinkCloudStorageForm from '../organisms/LinkCloudStorageForm'
 import ManageCloudStorageForm from '../organisms/ManageCloudStorageForm'
+import FolderList from '../organisms/FolderList/FolderList'
 
 interface StorageEditProps {
   storage: NoteStorage
@@ -58,6 +60,54 @@ export default ({ storage }: StorageEditProps) => {
     db.renameStorage(storage.id, name)
   }, [storage.id, db, name])
 
+  const getFolderTreeData = (folderArray: PopulatedFolderDoc[]) => {
+    let result: string[] = []
+    folderArray.forEach((folder) => {
+      const paths = folder.pathname.split('/')
+      paths.splice(0, 1)
+      result = setRecursivePathArray(paths, result)
+    })
+    return transformArrayToMap(result)
+  }
+
+  const setRecursivePathArray = (input: string[], tempResult: string[]) => {
+    const key = input.shift()
+    if (key == null) return []
+    if (
+      tempResult[key] !== '' &&
+      tempResult[key] !== null &&
+      tempResult[key] !== undefined
+    ) {
+      tempResult[key] = setRecursivePathArray(input, tempResult[key])
+    } else {
+      if (_.isEmpty(input)) {
+        tempResult[key] = []
+      } else {
+        tempResult[key] = setRecursivePathArray(input, [])
+      }
+    }
+    return tempResult
+  }
+
+  const transformArrayToMap = (input: string[]) => {
+    const result: Record<string, any>[] = []
+    Object.keys(input).forEach((key) => {
+      if (Object.keys(input[key]).length > 0) {
+        result.push({
+          title: key,
+          isDirectory: true,
+          children: transformArrayToMap(input[key]),
+          expanded: true,
+        })
+      } else {
+        result.push({ title: key, isDirectory: true })
+      }
+    })
+    return result
+  }
+
+  const folderTreeData = getFolderTreeData(values(storage.folderMap))
+
   return (
     <PageContainer>
       <FormHeading depth={1}>Storage Settings</FormHeading>
@@ -74,6 +124,14 @@ export default ({ storage }: StorageEditProps) => {
       <FormGroup>
         <FormPrimaryButton onClick={updateStorageName}>
           Update storage name
+        </FormPrimaryButton>
+      </FormGroup>
+      <hr />
+      <FormHeading depth={2}>Folders</FormHeading>
+      <FolderList folderTreeData={folderTreeData}></FolderList>
+      <FormGroup>
+        <FormPrimaryButton onClick={updateStorageName}>
+          Update folders
         </FormPrimaryButton>
       </FormGroup>
       <hr />

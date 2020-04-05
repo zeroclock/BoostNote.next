@@ -9,6 +9,7 @@ import {
   Attachment,
   PopulatedNoteDoc,
   CloudNoteStorageData,
+  FolderDocEditibleProps,
 } from './types'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import ow from 'ow'
@@ -57,6 +58,11 @@ export interface DbStore {
     storageName: string,
     pathname: string,
     newName: string
+  ) => Promise<void>
+  updateFolder: (
+    storageName: string,
+    pathname: string,
+    folderProps: Partial<FolderDocEditibleProps>
   ) => Promise<void>
   removeFolder: (storageName: string, pathname: string) => Promise<void>
   createNote(
@@ -547,6 +553,37 @@ export function createDbStoreCreator(
         queueSyncingStorage(storageId, autoSyncDebounceWaitingTime)
       },
       [storageMap, setStorageMap, queueSyncingStorage]
+    )
+
+    const updateFolder = useCallback(
+      async (
+        storageId: string,
+        pathname: string,
+        folderProps: Partial<FolderDocEditibleProps>
+      ) => {
+        const storage = storageMap[storageId]
+        if (storage == null) {
+          return
+        }
+        if (!isFolderPathnameValid(pathname)) {
+          throw createUnprocessableEntityError(
+            `pathname is invalid, got \`${pathname}\``
+          )
+        }
+        if (!isFolderPathnameValid(newPathname)) {
+          throw createUnprocessableEntityError(
+            `pathname is invalid, got \`${newPathname}\``
+          )
+        }
+        const updatedFolder = await storage.db.upsertFolder(
+          pathname,
+          folderProps
+        )
+        if (updatedFolder == null) {
+          return
+        }
+      },
+      [storageMap]
     )
 
     const removeFolder = useCallback(

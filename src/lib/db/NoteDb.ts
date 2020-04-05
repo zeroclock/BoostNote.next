@@ -107,11 +107,16 @@ export default class NoteDb {
       return folder
     }
     const now = getNow()
+    // let order = 0
+    // if (props.order != null) {
+    //   order = props.order
+    // }
     const folderDocProps = {
       ...(folder || {
         _id: getFolderId(pathname),
         createdAt: now,
         data: {},
+        // order: order,
       }),
       ...props,
       updatedAt: now,
@@ -123,6 +128,7 @@ export default class NoteDb {
       createdAt: folderDocProps.createdAt,
       updatedAt: folderDocProps.updatedAt,
       data: folderDocProps.data,
+      order: folderDocProps.order,
       _rev: rev,
     }
   }
