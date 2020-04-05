@@ -563,20 +563,18 @@ export function createDbStoreCreator(
         folderId: string,
         folderProps: Partial<FolderDocEditibleProps>
       ) => {
+        const newPathname = folderProps.pathname
         const storage = storageMap[storageId]
         if (storage == null) {
           return
         }
-        // if (!isFolderPathnameValid(pathname)) {
-        //   throw createUnprocessableEntityError(
-        //     `pathname is invalid, got \`${pathname}\``
-        //   )
-        // }
-        // if (!isFolderPathnameValid(newPathname)) {
-        //   throw createUnprocessableEntityError(
-        //     `pathname is invalid, got \`${newPathname}\``
-        //   )
-        // }
+        if (!_.isEmpty(newPathname)) {
+          if (!isFolderPathnameValid(newPathname)) {
+            throw createUnprocessableEntityError(
+              `pathname is invalid, got \`${newPathname}\``
+            )
+          }
+        }
         const updatedFolder = await storage.db.updateFolder(
           folderId,
           folderProps
