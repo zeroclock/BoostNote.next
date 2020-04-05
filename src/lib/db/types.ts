@@ -52,6 +52,7 @@ export type FolderDoc = {
 
 export type FolderDocEditibleProps = {
   data: JsonObject
+  pathname: string
   order: number
 }
 
@@ -91,7 +92,6 @@ export type NoteStorage = NoteStorageData &
   }
 
 export type PopulatedFolderDoc = FolderDoc & {
-  pathname: string
   noteIdSet: NoteIdSet
 }
 

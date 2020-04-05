@@ -19,8 +19,8 @@ export function generateNoteId(): string {
   return `${NOTE_ID_PREFIX}${generateId()}`
 }
 
-export function getFolderId(pathname: string): string {
-  return `${FOLDER_ID_PREFIX}${pathname}`
+export function getFolderId(): string {
+  return `${FOLDER_ID_PREFIX}${generateId()}`
 }
 
 export function getFolderPathname(id: string): string {

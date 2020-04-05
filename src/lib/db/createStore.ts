@@ -61,7 +61,7 @@ export interface DbStore {
   ) => Promise<void>
   updateFolder: (
     storageName: string,
-    pathname: string,
+    folderId: string,
     folderProps: Partial<FolderDocEditibleProps>
   ) => Promise<void>
   removeFolder: (storageName: string, pathname: string) => Promise<void>
@@ -431,7 +431,7 @@ export function createDbStoreCreator(
         }
         let folder
         try {
-          folder = await storage.db.upsertFolder(pathname)
+          folder = await storage.db.createFolder({ pathname: pathname })
         } catch (error) {
           pushMessage({
             title: 'Error',
@@ -448,7 +448,7 @@ export function createDbStoreCreator(
         setStorageMap(
           produce((draft: ObjectMap<NoteStorage>) => {
             createdFolders.forEach((aFolder) => {
-              const aPathname = getFolderPathname(aFolder._id)
+              const aPathname = aFolder.pathname
               if (storage.folderMap[aPathname] == null) {
                 draft[storageId]!.folderMap[aPathname] = {
                   ...aFolder,
@@ -513,7 +513,9 @@ export function createDbStoreCreator(
               )
             }
             const notes = await storage.db.findNotesByFolder(folderPathname)
-            const newFolder = await storage.db.upsertFolder(newfolderPathname)
+            const newFolder = await storage.db.createFolder({
+              pathname: newfolderPathname,
+            })
             const rewrittenNotes = await Promise.all(
               notes.map((note) =>
                 storage.db.updateNote(note._id, {
@@ -524,7 +526,7 @@ export function createDbStoreCreator(
 
             folderListToRefresh.push({
               ...newFolder,
-              pathname: getFolderPathname(newFolder._id),
+              pathname: newFolder.pathname,
               noteIdSet: new Set(rewrittenNotes.map((note) => note._id)),
             })
             notesListToRefresh.push(...rewrittenNotes)
@@ -558,27 +560,29 @@ export function createDbStoreCreator(
     const updateFolder = useCallback(
       async (
         storageId: string,
-        pathname: string,
+        folderId: string,
         folderProps: Partial<FolderDocEditibleProps>
       ) => {
         const storage = storageMap[storageId]
         if (storage == null) {
           return
         }
-        if (!isFolderPathnameValid(pathname)) {
-          throw createUnprocessableEntityError(
-            `pathname is invalid, got \`${pathname}\``
-          )
-        }
-        if (!isFolderPathnameValid(newPathname)) {
-          throw createUnprocessableEntityError(
-            `pathname is invalid, got \`${newPathname}\``
-          )
-        }
-        const updatedFolder = await storage.db.upsertFolder(
-          pathname,
+        // if (!isFolderPathnameValid(pathname)) {
+        //   throw createUnprocessableEntityError(
+        //     `pathname is invalid, got \`${pathname}\``
+        //   )
+        // }
+        // if (!isFolderPathnameValid(newPathname)) {
+        //   throw createUnprocessableEntityError(
+        //     `pathname is invalid, got \`${newPathname}\``
+        //   )
+        // }
+        const updatedFolder = await storage.db.updateFolder(
+          folderId,
           folderProps
         )
+        console.log('saved: ')
+        console.log(updatedFolder)
         if (updatedFolder == null) {
           return
         }
@@ -737,7 +741,7 @@ export function createDbStoreCreator(
           produce((draft: ObjectMap<NoteStorage>) => {
             draft[storageId]!.noteMap[noteDoc._id] = noteDoc
             parentFoldersToRefresh.forEach((folder) => {
-              const aPathname = getFolderPathname(folder._id)
+              const aPathname = folder.pathname
               draft[storageId]!.folderMap[aPathname] = {
                 ...folder,
                 pathname: aPathname,
@@ -806,7 +810,7 @@ export function createDbStoreCreator(
           ).map((folderDoc) => {
             return {
               ...folderDoc,
-              pathname: getFolderPathname(folderDoc._id),
+              pathname: folderDoc.pathname,
               noteIdSet: new Set<string>(),
             }
           })
@@ -973,7 +977,7 @@ export function createDbStoreCreator(
           ...parentFoldersToRefresh.map((folderDoc) => {
             return {
               ...folderDoc,
-              pathname: getFolderPathname(folderDoc._id),
+              pathname: folderDoc.pathname,
               noteIdSet: new Set<string>(),
             }
           })
@@ -1328,6 +1332,7 @@ export function createDbStoreCreator(
       removeTag,
       addAttachments,
       removeAttachment,
+      updateFolder,
     }
   }
 }

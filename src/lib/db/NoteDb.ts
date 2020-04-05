@@ -77,48 +77,55 @@ export default class NoteDb {
       }
     )
 
-    await this.upsertFolder('/')
+    await this.createFolder({ pathname: '/' })
 
     await Promise.all([
-      ...[...missingPathnameSet].map((pathname) => this.upsertFolder(pathname)),
+      ...[...missingPathnameSet].map((pathname) =>
+        this.createFolder({ pathname: pathname })
+      ),
       ...[...missingTagNameSet].map((tagName) => this.upsertTag(tagName)),
       ...requiresUpdate.map((note) => this.updateNote(note._id, note)),
     ])
   }
 
-  async getFolder(path: string): Promise<FolderDoc | null> {
-    return this.getDoc<FolderDoc>(getFolderId(path))
+  async getFolder(folderId: string): Promise<FolderDoc | null> {
+    return this.getDoc<FolderDoc>(folderId)
   }
 
-  async upsertFolder(
-    pathname: string,
-    props?: Partial<FolderDocEditibleProps>
+  async createFolder(
+    props: Partial<FolderDocEditibleProps>
   ): Promise<FolderDoc> {
-    if (!isFolderPathnameValid(pathname)) {
+    const now = getNow()
+    const pathname = props.pathname
+    const order = props.order
+    const { folderMap } = await this.getAllDocsMap()
+
+    if (pathname === undefined || !isFolderPathnameValid(pathname!)) {
       throw createUnprocessableEntityError(
         `pathname is invalid, got \`${pathname}\``
       )
     }
     if (pathname !== '/') {
-      await this.doesParentFolderExistOrCreate(pathname)
+      await this.doesParentFolderExistOrCreate(pathname!)
     }
-    const folder = await this.getFolder(pathname)
-    if (folder != null && props == null) {
-      return folder
+    let isDuplicate = false
+    Object.keys(folderMap).forEach((key: string) => {
+      if (folderMap[key].pathname == pathname) {
+        isDuplicate = true
+      }
+    })
+    if (isDuplicate) {
+      const folderId = await this.getFolderIdByPathname(pathname)
+      return this.getFolder(folderId)
     }
-    const now = getNow()
-    // let order = 0
-    // if (props.order != null) {
-    //   order = props.order
-    // }
+
     const folderDocProps = {
-      ...(folder || {
-        _id: getFolderId(pathname),
-        createdAt: now,
-        data: {},
-      }),
-      ...props,
+      _id: getFolderId(),
+      createdAt: now,
       updatedAt: now,
+      data: {},
+      pathname: pathname,
+      order: order,
     }
     const { rev } = await this.pouchDb.put(folderDocProps)
 
@@ -126,18 +133,98 @@ export default class NoteDb {
       _id: folderDocProps._id,
       createdAt: folderDocProps.createdAt,
       updatedAt: folderDocProps.updatedAt,
+      pathname: folderDocProps.pathname,
       data: folderDocProps.data,
-      order: folderDocProps.order,
+      order: folderDocProps.order!,
       _rev: rev,
     }
   }
 
+  async updateFolder(
+    folderId: string,
+    folderProps: Partial<FolderDocEditibleProps>
+  ) {
+    const folder = await this.getFolder(folderId)
+    if (folder == null)
+      throw createNotFoundError(`The folder \`${folderId}\` does not exist`)
+
+    if (folderProps.pathname) {
+      // TODO: update folderPathname of linked notes
+      // let linkedDocs = hoge()
+      // foreach
+      // await this.upsertFolder(noteProps.folderPathname)
+    }
+
+    const now = getNow()
+    const folderDocProps = {
+      ...folder,
+      ...folderProps,
+      updatedAt: now,
+    }
+    const { rev } = await this.pouchDb.put(folderDocProps)
+
+    return {
+      ...folderDocProps,
+      _rev: rev,
+    }
+  }
+
+  // async upsertFolder(
+  //   pathname: string,
+  //   props?: Partial<FolderDocEditibleProps>
+  // ): Promise<FolderDoc> {
+  //   if (!isFolderPathnameValid(pathname)) {
+  //     throw createUnprocessableEntityError(
+  //       `pathname is invalid, got \`${pathname}\``
+  //     )
+  //   }
+  //   if (pathname !== '/') {
+  //     await this.doesParentFolderExistOrCreate(pathname)
+  //   }
+  //   const folder = await this.getFolder(pathname)
+  //   if (folder != null && props == null) {
+  //     return folder
+  //   }
+  //   const now = getNow()
+  //   const folderDocProps = {
+  //     ...(folder || {
+  //       _id: getFolderId(pathname),
+  //       createdAt: now,
+  //       data: {},
+  //     }),
+  //     ...props,
+  //     updatedAt: now,
+  //   }
+  //   const { rev } = await this.pouchDb.put(folderDocProps)
+
+  //   return {
+  //     _id: folderDocProps._id,
+  //     createdAt: folderDocProps.createdAt,
+  //     updatedAt: folderDocProps.updatedAt,
+  //     data: folderDocProps.data,
+  //     order: folderDocProps.order,
+  //     _rev: rev,
+  //   }
+  // }
+
   async doesParentFolderExistOrCreate(pathname: string) {
     const parentPathname = getParentFolderPathname(pathname)
     if (parentPathname !== '/') {
-      await this.upsertFolder(parentPathname)
+      const folderProps: FolderDocEditibleProps = {
+        data: {},
+        pathname: parentPathname,
+        order: 1,
+      }
+      await this.createFolder(folderProps)
     }
   }
+
+  // async doesParentFolderExistOrCreate(pathname: string) {
+  //   const parentPathname = getParentFolderPathname(pathname)
+  //   if (parentPathname !== '/') {
+  //     await this.upsertFolder(parentPathname)
+  //   }
+  // }
 
   async getAllDocsMap(): Promise<AllDocsMap> {
     const allDocsResponse = await this.pouchDb.allDocs({
@@ -158,7 +245,7 @@ export default class NoteDb {
           storageId: this.id,
         } as PopulatedNoteDoc
       } else if (isFolderDoc(doc)) {
-        map.folderMap[getFolderPathname(doc._id)] = doc
+        map.folderMap[doc.pathname] = doc
       } else if (isTagDoc(doc)) {
         map.tagMap[getTagName(doc._id)] = doc
       }
@@ -240,7 +327,7 @@ export default class NoteDb {
       trashed: false,
     }
 
-    await this.upsertFolder(noteDocProps.folderPathname)
+    await this.createFolder({ pathname: noteDocProps.folderPathname })
     await Promise.all(
       noteDocProps.tags.map((tagName) => this.upsertTag(tagName))
     )
@@ -259,7 +346,7 @@ export default class NoteDb {
       throw createNotFoundError(`The note \`${noteId}\` does not exist`)
 
     if (noteProps.folderPathname) {
-      await this.upsertFolder(noteProps.folderPathname)
+      await this.createFolder({ pathname: noteProps.folderPathname })
     }
     if (noteProps.tags) {
       await Promise.all(
@@ -364,7 +451,7 @@ export default class NoteDb {
     if (note == null)
       throw createNotFoundError(`The note \`${noteId}\` does not exist`)
 
-    await this.upsertFolder(note.folderPathname)
+    await this.createFolder({ pathname: note.folderPathname })
 
     await Promise.all(
       note.tags.map((tag) => {
@@ -413,7 +500,7 @@ export default class NoteDb {
 
     await Promise.all(
       foldersToDelete.map((folder) =>
-        this.trashAllNotesInFolder(getFolderPathname(folder._id))
+        this.trashAllNotesInFolder(folder.pathname)
       )
     )
 
@@ -422,14 +509,26 @@ export default class NoteDb {
     )
   }
 
+  async getFolderIdByPathname(pathname: string): Promise<string> {
+    const { folderMap } = await this.getAllDocsMap()
+    let result = ''
+    Object.keys(folderMap).forEach((key: string) => {
+      if (folderMap[key].pathname === pathname) {
+        result = folderMap[key]._id
+      }
+    })
+    return result
+  }
+
   async getAllFolderUnderPathname(
     folderPathname: string
   ): Promise<FolderDoc[]> {
+    const folderId = await this.getFolderIdByPathname(folderPathname)
     const [folder, allDocs] = await Promise.all([
-      this.getFolder(folderPathname),
+      this.getFolder(folderId),
       this.pouchDb.allDocs<FolderDoc>({
-        startkey: `${getFolderId(folderPathname)}/`,
-        endkey: `${getFolderId(folderPathname)}/\ufff0`,
+        startkey: `${folderId}/`,
+        endkey: `${folderId}/\ufff0`,
         include_docs: true,
       }),
     ])
@@ -466,8 +565,13 @@ export default class NoteDb {
     if (pathnames.length === 0) {
       return []
     }
+    const keys = await Promise.all(
+      pathnames.map(
+        async (pathname) => await this.getFolderIdByPathname(pathname)
+      )
+    )
     const allDocsResponse = await this.pouchDb.allDocs<FolderDoc>({
-      keys: pathnames.map((pathname) => getFolderId(pathname)),
+      keys: keys,
       include_docs: true,
     })
     return allDocsResponse.rows.map((row) => row.doc!)

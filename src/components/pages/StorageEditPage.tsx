@@ -61,13 +61,17 @@ export default ({ storage }: StorageEditProps) => {
   }, [storage.id, db, name])
 
   const getFolderTreeData = (folderArray: PopulatedFolderDoc[]) => {
+    folderArray.sort((a, b) => {
+      return a.pathname.length - b.pathname.length
+    })
     let result: string[] = []
     folderArray.forEach((folder) => {
-      const paths = folder.pathname.split('/')
-      paths.splice(0, 1)
-      result = setRecursivePathArray(paths, result, folder._id)
+      if (folder.pathname !== '/') {
+        const paths = folder.pathname.split('/')
+        paths.splice(0, 1)
+        result = setRecursivePathArray(paths, result, folder._id)
+      }
     })
-    console.log(transformArrayToMap(result))
     return transformArrayToMap(result)
   }
 
@@ -125,8 +129,27 @@ export default ({ storage }: StorageEditProps) => {
 
   const rearrangeFolders = useCallback(() => {
     console.log(folderTreeDataState)
-    
+    folderTreeDataState.forEach((folder: object) => {
+      updateRecursiveFolders(folder, '/')
+    })
   }, [folderTreeDataState])
+
+  const updateRecursiveFolders = (folder: object, pathname: string) => {
+    if (_.isEmpty(folder['children'])) {
+      console.log(pathname + folder['title'] + `(${folder['id']})`)
+      db.updateFolder(storage.id, folder['id'], {
+        pathname: pathname + folder['title'],
+      })
+    } else {
+      console.log(pathname + folder['title'] + `(${folder['id']})`)
+      db.updateFolder(storage.id, folder['id'], {
+        pathname: pathname + folder['title'],
+      })
+      folder['children'].forEach((child: object) => {
+        updateRecursiveFolders(child, pathname + folder['title'] + '/')
+      })
+    }
+  }
 
   return (
     <PageContainer>
